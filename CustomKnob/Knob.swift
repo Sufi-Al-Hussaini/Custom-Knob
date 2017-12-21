@@ -43,7 +43,7 @@ import UIKit.UIGestureRecognizerSubclass
     public func setValue(value: Float, animated: Bool = false) {
         if self.value != value {
             self.value = min(maximumValue, max(minimumValue, value))
-            renderer.setPointerAngle(angleForValue(self.value), animated: animated)
+            renderer.setCurrentAngle(angleForValue(self.value), animated: animated)
         }
     }
     
@@ -64,7 +64,6 @@ import UIKit.UIGestureRecognizerSubclass
         renderer.updateWithBounds(bounds)
         
         layer.addSublayer(renderer.trackLayer)
-        layer.addSublayer(renderer.pointerLayer)
     }
     
     required public init?(coder aDecoder: NSCoder) {
@@ -125,17 +124,6 @@ public extension Knob {
         }
     }
     
-    /**
-     Specifies the length in points of the pointer on the knob. Defaults to 6.0.
-     */
-    @IBInspectable public var pointerLength: CGFloat {
-        get {
-            return renderer.pointerLength
-        }
-        set {
-            renderer.pointerLength = newValue
-        }
-    }
     
     // MARK: Renderer
     
@@ -144,15 +132,12 @@ public extension Knob {
         var color: UIColor = .black {
             didSet {
                 trackLayer.strokeColor = color.cgColor
-                pointerLayer.strokeColor = color.cgColor
             }
         }
         var lineWidth: CGFloat = 2 {
             didSet {
                 trackLayer.lineWidth = lineWidth
-                pointerLayer.lineWidth = lineWidth
                 updateTrackShape()
-                updatePointerShape()
             }
         }
         
@@ -175,76 +160,36 @@ public extension Knob {
             }
         }
         
-        // MARK: Pointer Layer
+        var currentAngle = -CGFloat.pi * 11 / 8.0
         
-        let pointerLayer: CAShapeLayer = {
-            var layer = CAShapeLayer.init()
-            layer.fillColor = UIColor.clear.cgColor
-            return layer
-            }()
-        
-        var pointerAngle = -CGFloat.pi * 11 / 8.0
-        var pointerLength: CGFloat = 6 {
-            didSet {
-                updateTrackShape()
-                updatePointerShape()
-            }
-        }
-        
-        func setPointerAngle(_ angle: CGFloat, animated: Bool = false) {
-            CATransaction.begin()
-            CATransaction.setDisableActions(true)
-            pointerLayer.transform = CATransform3DMakeRotation(angle, 0, 0, 1)
-            if animated {
-                let midAngle = (max(pointerAngle, angle) - min(pointerAngle, angle)) / 2 + min(pointerAngle, angle)
-                let animation = CAKeyframeAnimation(keyPath: "transform.rotation.z")
-                animation.duration = 0.3
-                animation.values = [pointerAngle, midAngle, angle]
-                animation.keyTimes = [0, 0.5, 1.0]
-                animation.timingFunction = CAMediaTimingFunction(name: kCAMediaTimingFunctionEaseInEaseOut)
-                
-                pointerLayer.add(animation, forKey: nil)
-            }
-            CATransaction.commit()
-            pointerAngle = angle
+        func setCurrentAngle(_ angle: CGFloat, animated: Bool = false) {
+            currentAngle = angle
+            updateTrackShape()
         }
         
         // MARK: Update Logic
         
         func updateTrackShape() {
             let center = CGPoint(x: trackLayer.bounds.width / 2, y: trackLayer.bounds.height / 2)
-            let offset = max(pointerLength, lineWidth / 2)
+            let offset = lineWidth / 2
             let radius = min(trackLayer.bounds.width, trackLayer.bounds.height) / 2 - offset
-            let ring = UIBezierPath(arcCenter: center, radius: radius, startAngle: startAngle, endAngle: endAngle, clockwise: true)
+            let ring = UIBezierPath(arcCenter: center, radius: radius, startAngle: startAngle, endAngle: currentAngle, clockwise: true)
             
             trackLayer.path = ring.cgPath
         }
         
-        func updatePointerShape() {
-            let pointer = UIBezierPath()
-            pointer.move(to: CGPoint(x: pointerLayer.bounds.width - pointerLength - lineWidth/2, y: pointerLayer.bounds.height / 2))
-            pointer.addLine(to: CGPoint(x: pointerLayer.bounds.width, y: pointerLayer.bounds.height / 2))
-            
-            pointerLayer.path = pointer.cgPath
-        }
         
         func updateWithBounds(_ bounds: CGRect) {
             trackLayer.bounds = bounds
             trackLayer.position = CGPoint(x: bounds.width / 2, y: bounds.height / 2)
             updateTrackShape()
-            
-            pointerLayer.bounds = trackLayer.bounds
-            pointerLayer.position = trackLayer.position
-            updatePointerShape()
         }
         
         // MARK: Lifecycle
         
         init() {
             trackLayer.lineWidth = lineWidth
-            pointerLayer.lineWidth = lineWidth
             trackLayer.strokeColor = color.cgColor
-            pointerLayer.strokeColor = color.cgColor
         }
         
     }
@@ -323,7 +268,7 @@ private extension Knob {
 
 // MARK: - Utilities extenstion
 
-private extension Knob {
+public extension Knob {
     
     // MARK: Value/Angle conversion
     
